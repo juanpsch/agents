@@ -6,8 +6,18 @@ import requests
 from pypdf import PdfReader
 import gradio as gr
 
+import json
+import chromadb
+
+# Configuración
 
 load_dotenv(override=True)
+client = OpenAI()
+chroma_client = chromadb.PersistentClient(path="./mi_base_de_datos")
+collection = chroma_client.get_or_create_collection(name="faq_cv")
+
+
+
 
 def push(text):
     requests.post(
@@ -27,6 +37,24 @@ def record_user_details(email, name="Nombre no indicado", notes="no proporcionad
 def record_unknown_question(question):
     push(f"Registrando {question}")
     return {"recorded": "ok"}
+
+
+
+def buscar_en_faq(query_usuario: str):
+    # 1. Convertir pregunta a embedding
+    res = client.embeddings.create(input=query_usuario, model="text-embedding-3-small")
+    query_embedding = res.data[0].embedding
+    
+    # 2. Consultar Chroma
+    resultados = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=1
+    )
+    
+    # 3. Extraer respuesta (el primer resultado es el más cercano)
+    return resultados['metadatas'][0][0]['respuesta']
+
+
 
 record_user_details_json = {
     "name": "record_user_details",
@@ -55,13 +83,13 @@ record_user_details_json = {
 
 record_unknown_question_json = {
     "name": "record_unknown_question",
-    "description": "Utiliza siempre esta herramienta para registrar cualquier pregunta que no haya podido responder porque no se sabía la respuesta.",
+    "description": "Utiliza esta herramienta ÚNICAMENTE como último recurso, si la pregunta NO pudo ser respondida ni utilizando la herramienta 'buscar_en_faq' ni utilizando la información de tu contexto (Resumen y perfil de LinkedIn).",
     "parameters": {
         "type": "object",
         "properties": {
             "question": {
                 "type": "string",
-                "description": "La pregunta no sabe responderse"
+                "description": "La pregunta exacta del usuario que no supiste responder tras consultar todas tus fuentes."
             },
         },
         "required": ["question"],
@@ -69,22 +97,42 @@ record_unknown_question_json = {
     }
 }
 
+buscar_en_faq_json = {
+    "name": "buscar_en_faq",
+    "description": "Usar primero cuando se busca información profesional, experiencia o preguntas frecuentes sobre el CV del candidato.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query_usuario": {
+                "type": "string",
+                "description": "La pregunta exacta del usuario sobre el CV"
+            }
+        },
+        "required": ["query_usuario"],
+        "additionalProperties": False
+    }
+}
+
 tools = [{"type": "function", "function": record_user_details_json},
-        {"type": "function", "function": record_unknown_question_json}]
+        {"type": "function", "function": record_unknown_question_json},
+        {"type": "function", "function": buscar_en_faq_json}]
 
 
 class Me:
 
     def __init__(self):
         self.openai = OpenAI()
-        self.name = "Juan Gabriel Gomila"
+        self.name = "Juan Pablo Schamun"
         reader = PdfReader("me/linkedin.pdf")
         self.linkedin = ""
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                self.linkedin += text
-        with open("me/summary.txt", "r", encoding="utf-8") as f:
+        files = ["me/CV-AI_JPS.pdf", "me/CV Juan Pablo Schamun - BI Analyst Senior.pdf", "me/CV-JPS_Perfil Industrial.pdf"]
+        for file in files:    
+            reader = PdfReader(file)
+            for page in reader.pages:                
+                text = page.extract_text()
+                if text:
+                    self.linkedin += text
+        with open("me/summaryjp.txt", "r", encoding="utf-8") as f:
             self.summary = f.read()
 
 
@@ -100,30 +148,64 @@ class Me:
         return results
     
     def system_prompt(self):
-        system_prompt = f"""Actúas como {self.name}. Respondes preguntas en el sitio web de {self.name}, en particular preguntas relacionadas con la trayectoria profesional, los antecedentes, las habilidades y la experiencia de {self.name}.
-            Tu responsabilidad es representar a {self.name} en las interacciones del sitio web con la mayor fidelidad posible.
-            Se te proporciona un resumen de la trayectoria profesional y el perfil de LinkedIn de {self.name} que puedes usar para responder preguntas.
-            Muestra un tono profesional y atractivo, como si hablaras con un cliente potencial o un futuro empleador que haya visitado el sitio web.
-            Si no sabes la respuesta a alguna pregunta, usa la herramienta 'record_unknown_question' para registrar la pregunta que no pudiste responder, incluso si se trata de algo trivial o no relacionado con tu trayectoria profesional.
-            Si el usuario participa en una conversación, intenta que se ponga en contacto por correo electrónico; pídele su correo electrónico y regístralo con la herramienta 'record_user_details'."""
-        
-        system_prompt += f"\n\n## Resumen:\n{self.summary}\n\n## Perfil de LinkedIn:\n{self.linkedin}\n\n"
-        system_prompt += f"En este contexto, por favor chatea con el usuario, manteniéndote siempre en el personaje de {self.name}."
+        system_prompt = f"""Actúas como {self.name}. Tu objetivo es representar a {self.name} en interacciones profesionales en su sitio web, enfocándote en su trayectoria, habilidades y experiencia.
+
+            ### PRIORIDAD DE FUENTES DE INFORMACIÓN:
+            Sigue este orden secuencial y estricto antes de responder:           
+            1. Si es un saludo, no uses  herramientas
+            2. HERRAMIENTA 'buscar_en_faq': Úsala primero siempre que la pregunta trate sobre experiencia, habilidades, trayectoria, formación o antecedentes.
+            3. CONTEXTO (RESUMEN/LINKEDIN): Si la herramienta 'buscar_en_faq' no devuelve información útil, revisa el Resumen y Perfil de LinkedIn proporcionados abajo.
+            43. REGISTRO DE DUDAS: SOLO si la respuesta NO se encuentra ni en 'buscar_en_faq' NI en el contexto proporcionado, utiliza la herramienta 'record_unknown_question'.
+
+            ### DIRECTRICES DE CONVERSACIÓN:
+            - Mantén un tono profesional, atractivo y fiel al personaje de {self.name}.
+            - Si la información obtenida de 'buscar_en_faq' no es relevante, ignórala y apóyate exclusivamente en tu contexto.            
+            - Si la conversación es fluida, invita al usuario a contactar por correo electrónico; si lo comparte, regístralo mediante 'record_user_details'.
+
+            ## INFORMACIÓN DE RESPALDO:
+            ## Resumen:
+            {self.summary}
+
+            ## Perfil de LinkedIn:
+            {self.linkedin}
+
+            En este contexto, mantente siempre en el personaje de {self.name} y responde de manera natural y precisa."""
+                    
         return system_prompt
     
+    
     def chat(self, message, history):
-        messages = [{"role": "system", "content": self.system_prompt()}] + history + [{"role": "user", "content": message}]
+        # 1. LIMITAR EL HISTORIAL: Nos quedamos solo con los últimos 6 mensajes (3 intercambios)
+        historial_reciente = history[-6:] if len(history) > 6 else history
+        
+        # 2. RECORDATORIO TÁCTICO: Reforzamos la regla en el último mensaje para que no lo olvide
+        # 2. RECORDATORIO TÁCTICO ACTUALIZADO
+        recordatorio = "\n\n[Instrucción interna: Si el mensaje es un simple saludo o cortesía, responde naturalmente saludando e invitando a consultar sobre tu experiencia SIN usar herramientas. Si es una pregunta sobre tu perfil, usa 'buscar_en_faq'.]"
+        mensaje_reforzado = message + recordatorio
+
+        # Armamos los mensajes con el historial recortado y el mensaje reforzado
+        messages = [{"role": "system", "content": self.system_prompt()}] + historial_reciente + [{"role": "user", "content": mensaje_reforzado}]
+        
         done = False
         while not done:
-            response = self.openai.chat.completions.create(model="gpt-4o-mini", messages=messages, tools=tools)
-            if response.choices[0].finish_reason=="tool_calls":
-                message = response.choices[0].message
-                tool_calls = message.tool_calls
+            response = self.openai.chat.completions.create(
+                model="gpt-4o-mini", 
+                messages=messages, 
+                tools=tools,
+                parallel_tool_calls=False # Mantenemos esto activado
+            )
+            
+            if response.choices[0].finish_reason == "tool_calls":
+                # Al reasignar 'message', evitamos que el recordatorio táctico 
+                # cause problemas en el registro del historial de herramientas
+                mensaje_herramienta = response.choices[0].message
+                tool_calls = mensaje_herramienta.tool_calls
                 results = self.handle_tool_call(tool_calls)
-                messages.append(message)
+                messages.append(mensaje_herramienta)
                 messages.extend(results)
             else:
                 done = True
+                
         return response.choices[0].message.content
     
 

@@ -1,0 +1,82 @@
+[
+    {
+      "pregunta": "¿Cuál es tu formación académica principal?",
+      "respuesta": "Cuento con estudios en Ingeniería Industrial, Master en Energía y Especialización en IA, enfocándome en el desarrollo de software y arquitecturas de datos."
+    },
+    {
+      "pregunta": "¿Cuántos años de experiencia tienes desarrollando software?",
+      "respuesta": "Cuento con más de 5 años de experiencia trabajando en proyectos de desarrollo backend y automatización."
+    },
+    {
+      "pregunta": "¿En qué lenguajes de programación tienes mayor experiencia?",
+      "respuesta": "Mi lenguaje principal es Python, aunque también tengo experiencia trabajando con JavaScript y SQL para bases de datos."
+    },
+    {
+      "pregunta": "¿Qué experiencia tienes con el desarrollo de agentes de IA?",
+      "respuesta": "He diseñado agentes utilizando la API de OpenAI, integrando herramientas externas, gestión de contexto y memoria persistente."
+    },
+    {
+      "pregunta": "¿Has trabajado con bases de datos vectoriales?",
+      "respuesta": "Sí, utilizo ChromaDB para implementar búsqueda semántica y recuperación de información (RAG) en mis aplicaciones."
+    },
+    {
+      "pregunta": "¿Cuál es tu nivel de inglés?",
+      "respuesta": "Tengo un nivel profesional, capaz de leer documentación técnica y participar en reuniones de equipo sin inconvenientes."
+    },
+    {
+      "pregunta": "¿Tienes experiencia trabajando en equipos remotos?",
+      "respuesta": "Sí, he trabajado en equipos distribuidos utilizando metodologías ágiles como Scrum y herramientas de gestión como Jira y GitHub."
+    },
+    {
+      "pregunta": "¿Qué frameworks de backend has utilizado?",
+      "respuesta": "He trabajado principalmente con FastAPI y Flask para el desarrollo de APIs robustas y escalables."
+    },
+    {
+      "pregunta": "¿Cómo manejas el versionado de código?",
+      "respuesta": "Utilizo Git de forma avanzada, siguiendo flujos de trabajo como Gitflow y realizando code reviews en plataformas como GitHub o GitLab."
+    },
+    {
+      "pregunta": "¿Qué experiencia tienes con la nube (cloud)?",
+      "respuesta": "Tengo experiencia desplegando servicios en AWS y utilizando servicios gestionados para contenedores como Docker."
+    },
+    {
+      "pregunta": "¿Sabes integrar APIs de terceros?",
+      "respuesta": "Sí, tengo experiencia consumiendo y diseñando integraciones con APIs RESTful, incluyendo servicios de autenticación y pasarelas de pago."
+    },
+    {
+      "pregunta": "¿Cuál es tu enfoque para escribir código limpio?",
+      "respuesta": "Priorizo la legibilidad, el uso de tipos (type hinting), la escritura de pruebas unitarias y el cumplimiento de principios SOLID."
+    },
+    {
+      "pregunta": "¿Has trabajado con arquitecturas de microservicios?",
+      "respuesta": "Sí, he participado en la migración y mantenimiento de arquitecturas basadas en microservicios y comunicación mediante eventos."
+    },
+    {
+      "pregunta": "¿Cómo manejas los errores en producción?",
+      "respuesta": "Implemento sistemas de logging centralizado (como ELK o Sentry) y monitoreo constante para detectar y corregir problemas proactivamente."
+    },
+    {
+      "pregunta": "¿Tienes experiencia con CI/CD?",
+      "respuesta": "Sí, configuro pipelines de integración y despliegue continuo utilizando GitHub Actions para automatizar los tests y el despliegue."
+    },
+    {
+      "pregunta": "¿Qué herramientas usas para la gestión de dependencias?",
+      "respuesta": "Actualmente utilizo 'uv', que me permite gestionar entornos virtuales y dependencias de forma mucho más rápida y eficiente que herramientas tradicionales."
+    },
+    {
+      "pregunta": "¿Cómo te mantienes actualizado con las nuevas tecnologías?",
+      "respuesta": "Dedico tiempo semanal a leer artículos técnicos, seguir repositorios en GitHub y realizar pequeños prototipos con nuevas librerías."
+    },
+    {
+      "pregunta": "¿Qué importancia le das a la documentación?",
+      "respuesta": "La considero vital. Documento tanto el código a nivel técnico como el uso de los endpoints de mis APIs mediante Swagger/OpenAPI."
+    },
+    {
+      "pregunta": "¿Has trabajado con contenedores?",
+      "respuesta": "Sí, utilizo Docker extensivamente para asegurar que el entorno de desarrollo sea idéntico al de producción."
+    },
+    {
+      "pregunta": "¿Qué esperas de un equipo de trabajo?",
+      "respuesta": "Busco entornos colaborativos donde se fomente el intercambio de conocimientos, el desafío técnico constante y la comunicación clara."
+    }
+  ]

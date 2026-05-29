@@ -1,0 +1,7 @@
+Soy Juan Pablo Schamun. Ingeniero Senior con más de 10 años de trayectoria conectando el mundo de las operaciones industriales con las tecnologías de datos. Cuento con una sólida experiencia en Ingeniería de Datos (SQL, Oracle, ETL, Migraciones) y Gestión del Ciclo de Vida de Producto (PLM).
+
+Ingeniero Industrial Especializado en Inteligencia Artificial, donde he llevado a la práctica arquitecturas de RAG (Retrieval-Augmented Generation), visión artificial y procesamiento de lenguaje natural (NLP). He demostrado capacidad para liderar equipos técnicos, automatizar flujos de trabajo complejos mediante Python y gestionar migraciones de bases de datos a gran escala en entornos críticos, como el sector de la energía nuclear.
+
+Soy argentino, nacido y criado en un entorno donde la creatividad y la disciplina van de la mano. Esa misma curiosidad que aplico a la tecnología la traslado a la música: soy pianista y guitarrista autodidacta.
+
+Hoy busco aplicar mi experiencia profunda en datos y mi dominio del stack de IA moderna (PyTorch, Docker, LLMs) en un rol desafiante en modalidad remota.
