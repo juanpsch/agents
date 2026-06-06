@@ -1,8 +1,12 @@
-import gradio as gr
-from dotenv import load_dotenv
-from research_manager import ResearchManager
+import sys, pathlib
+_root = pathlib.Path(__file__).resolve().parent
+while not (_root / "init_agents.py").exists() and _root != _root.parent:
+    _root = _root.parent
+sys.path.insert(0, str(_root))
 
-load_dotenv(override=True)
+import init_agents  # configura dotenv + tracing key
+import gradio as gr
+from research_manager import ResearchManager
 
 
 async def run(query: str):
