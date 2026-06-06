@@ -5,6 +5,10 @@ import sendgrid
 from sendgrid.helpers.mail import Email, Mail, Content, To
 from agents import Agent, function_tool
 
+import certifi
+import os
+os.environ['SSL_CERT_FILE'] = certifi.where()
+
 @function_tool
 def send_email(subject: str, html_body: str) -> Dict[str, str]:
     """ Envía un correo electrónico con el asunto y el cuerpo HTML proporcionados """
