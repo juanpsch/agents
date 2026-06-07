@@ -159,20 +159,13 @@ with gr.Blocks(
     theme=gr.themes.Default(primary_hue="sky", neutral_hue="slate"),
     title="Investigación Profunda",
     css="""
-        /* Página sin scroll — todo encaja en el viewport */
-        html, body { overflow: hidden; height: 100%; }
-        .gradio-container { height: 100vh !important; overflow: hidden !important; }
-        .main-wrap { height: 100vh; display: flex; flex-direction: column; }
-
         /* Barra de opciones compacta */
         .options-bar {
-            flex-shrink: 0;
             padding: 6px 16px !important;
             border-bottom: 1px solid #334155;
             align-items: center;
         }
         .options-bar label { font-size: 0.75rem !important; margin-bottom: 1px !important; }
-        .options-bar .gr-radio-row { gap: 8px !important; }
 
         /* Columna del informe */
         .report-col { border-left: 1px solid #334155; padding-left: 1.5rem; }
@@ -181,7 +174,7 @@ with gr.Blocks(
     """,
 ) as ui:
 
-    with gr.Column(elem_classes="main-wrap"):
+    with gr.Column():
 
         gr.Markdown("## Investigación Profunda")
 
@@ -209,7 +202,7 @@ with gr.Blocks(
             with gr.Column(scale=1):
                 chatbot = gr.Chatbot(
                     type="messages",
-                    height=360,
+                    height=340,
                     label="Conversación",
                     show_copy_button=True,
                     bubble_full_width=False,
@@ -234,7 +227,7 @@ with gr.Blocks(
                 gr.Markdown("### Informe")
                 report_output = gr.Markdown(
                     value="*El informe aparecerá aquí una vez finalizada la investigación.*",
-                    height=430,
+                    height=460,
                 )
                 email_btn = gr.Button("Enviar informe por email", variant="secondary", visible=False)
 

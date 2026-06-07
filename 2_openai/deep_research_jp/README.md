@@ -119,13 +119,23 @@ uv run deep_research.py
 
 Se abre automáticamente en `http://127.0.0.1:7860`.
 
+### Panel de opciones
+
+Antes de iniciar una búsqueda podés configurar dos parámetros desde la barra fija en la parte superior:
+
+| Opción | Valores | Default | Notas |
+|---|---|---|---|
+| **Motor de búsqueda** | DuckDuckGo / OpenAI WebSearch / Tavily | DuckDuckGo | DuckDuckGo es gratuito. OpenAI WebSearch consume créditos de la API. Tavily requiere `TAVILY_API_KEY` en el `.env`. |
+| **Número de búsquedas** | 1 – 10 | 3 | Más búsquedas = informe más completo pero más lento y costoso. |
+
 ### Flujo de uso
 
-1. **Escribís tu consulta** → el sistema te hace 2-3 preguntas de a una para entender el contexto
-2. **Respondés cada pregunta** → arranca la investigación (podés ver el progreso en tiempo real en el chat)
-3. **El informe aparece** en la columna derecha en formato markdown
-4. **Podés profundizar**: hacé click en una de las preguntas de seguimiento → se auto-completa el input → enviás → el informe se expande con nueva investigación
-5. **Email opcional**: una vez generado el informe, el botón "Enviar informe por email" aparece en la columna derecha
+1. **Configurás** motor de búsqueda y cantidad de búsquedas en la barra superior
+2. **Escribís tu consulta** → el sistema te hace 2-3 preguntas de a una para entender el contexto
+3. **Respondés cada pregunta** → arranca la investigación (podés ver el progreso en tiempo real en el chat)
+4. **El informe aparece** en la columna derecha en formato markdown
+5. **Podés profundizar**: hacé click en una de las preguntas de seguimiento → se auto-completa el input → enviás → el informe se expande con nueva investigación
+6. **Email opcional**: una vez generado el informe, el botón "Enviar informe por email" aparece en la columna derecha
 
 ### Tracing
 
@@ -155,6 +165,8 @@ UI simple → plan (3 queries) → búsquedas → writer → email automático
 | Email | Automático siempre | Botón post-reporte, opcional |
 | Errores de email visibles | ❌ silenciosos | ✅ aparecen en el chat |
 | Progreso visible | ❌ | ✅ cada paso en el chat |
+| Motor de búsqueda | Fijo en código (`WebSearchTool`) | ✅ Seleccionable: DuckDuckGo / OpenAI / Tavily |
+| Cantidad de búsquedas | Fijo en 3 | ✅ Slider 1–10 |
 
 ### Cambios de UI
 
@@ -163,8 +175,11 @@ UI simple → plan (3 queries) → búsquedas → writer → email automático
 | Layout | Una columna | Dos columnas (chat \| informe) |
 | Interfaz | Textbox + botón | Chat conversacional con estado |
 | Estado | Sin estado | Máquina de estados: `idle → clarifying → researching → done → deepening` |
+| Scroll | Página entera | Solo los componentes internos — input y opciones siempre visibles |
+| Panel de opciones | ❌ | ✅ Barra fija superior con motor y cantidad de búsquedas |
 
 ### Nuevos archivos
 
 - `clarifier_agent.py` — agente clarificador con output estructurado
 - `guardrails.py` — dos guardrails LLM-based (input safety + output safety)
+- `search_tools.py` — implementaciones de DuckDuckGo, OpenAI WebSearch y Tavily
