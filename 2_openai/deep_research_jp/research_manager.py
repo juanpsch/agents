@@ -1,4 +1,6 @@
 from agents import Runner, trace, gen_trace_id, InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered
+from langsmith import traceable
+from langsmith import trace as ls_trace
 from search_agent import make_search_agent
 from search_tools import duckduckgo_search, openai_search, tavily_search
 from planner_agent import planner_agent, WebSearchItem, WebSearchPlan
@@ -16,6 +18,7 @@ import asyncio
 
 class ResearchManager:
 
+    @traceable(name="clarify")
     async def clarify(self, query: str) -> list[str]:
         try:
             result = await Runner.run(clarifier_agent, f"Consulta del usuario: {query}")
@@ -26,7 +29,7 @@ class ResearchManager:
 
     async def run(self, query: str, clarifications: str = "", search_tool_name: str = "DuckDuckGo", num_searches: int = 3):
         trace_id = gen_trace_id()
-        with trace("Investigación profunda", trace_id=trace_id):
+        with ls_trace("Investigación profunda"), trace("Investigación profunda", trace_id=trace_id):
             yield {"type": "status", "message": f"Traza: https://platform.openai.com/traces/trace?trace_id={trace_id}"}
             yield {"type": "progress", "message": "Planificando búsquedas..."}
             try:
@@ -60,7 +63,7 @@ class ResearchManager:
 
     async def deepen(self, query: str, original_report: ReportData, focus: str, search_tool_name: str = "DuckDuckGo", num_searches: int = 3):
         trace_id = gen_trace_id()
-        with trace("Profundización", trace_id=trace_id):
+        with ls_trace("Profundización"), trace("Profundización", trace_id=trace_id):
             yield {"type": "status", "message": f"Traza: https://platform.openai.com/traces/trace?trace_id={trace_id}"}
             yield {"type": "progress", "message": "Planificando búsquedas adicionales..."}
             search_plan = await self.plan_searches(focus, "", num_searches)
@@ -91,6 +94,7 @@ class ResearchManager:
             updated_report = result.final_output_as(ReportData)
             yield {"type": "report", "data": updated_report}
 
+    @traceable(name="plan-searches")
     async def plan_searches(self, query: str, clarifications: str, num_searches: int = 3) -> WebSearchPlan:
         context = f"Consulta: {query}\nNúmero de búsquedas a realizar: {num_searches}"
         if clarifications:
@@ -98,6 +102,7 @@ class ResearchManager:
         result = await Runner.run(planner_agent, context)
         return result.final_output_as(WebSearchPlan)
 
+    @traceable(name="search")
     async def search(self, item: WebSearchItem, tool) -> str | None:
         input = f"Término de búsqueda: {item.query}\nRazón: {item.reason}"
         try:
@@ -106,6 +111,7 @@ class ResearchManager:
         except Exception:
             return None
 
+    @traceable(name="write-report")
     async def write_report(self, query: str, clarifications: str, search_results: list[str]) -> ReportData:
         context = f"Consulta original: {query}"
         if clarifications:
