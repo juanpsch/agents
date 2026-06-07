@@ -205,7 +205,6 @@ with gr.Blocks(
                     height=340,
                     label="Conversación",
                     show_copy_button=True,
-                    bubble_full_width=False,
                 )
                 followup_radio = gr.Radio(
                     choices=[],
