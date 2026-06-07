@@ -8,62 +8,140 @@ import init_agents  # configura dotenv + tracing key
 import gradio as gr
 from research_manager import ResearchManager
 
-# ── Estado de la conversación ──────────────────────────────────────────────
-# phase: "idle" | "clarifying" | "researching"
 
 def initial_state():
-    return {"phase": "idle", "query": ""}
+    return {
+        "phase": "idle",   # idle | clarifying | researching | done | deepening
+        "query": "",
+        "report": None,
+        "questions": [],
+        "current_q": 0,
+        "answers": [],
+    }
 
 
-async def respond(message, history, state, send_email_flag):
+# outputs: chatbot, app_state, report_output, email_btn, followup_radio, msg_input
+
+async def respond(message, history, state):
     if not message.strip():
-        yield history, state, gr.update(), ""
+        yield history, state, gr.update(), gr.update(), gr.update(), ""
         return
 
     history = history + [{"role": "user", "content": message}]
 
+    # ── IDLE: nueva consulta ──────────────────────────────────────────
     if state["phase"] == "idle":
-        # Paso 1: pedir clarificaciones
         history = history + [{"role": "assistant", "content": "Analizando tu consulta..."}]
-        yield history, state, gr.update(), ""
+        yield history, state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
 
         questions = await ResearchManager().clarify(message)
-        new_state = {"phase": "clarifying", "query": message}
+        new_state = {**initial_state(), "phase": "clarifying", "query": message, "questions": questions}
 
-        q_lines = "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
-        response = (
-            f"Para darte el mejor informe posible necesito un poco más de contexto:\n\n"
-            f"{q_lines}\n\n"
-            f"*Respondé todo en el siguiente mensaje (podés ser breve).*"
-        )
-        history[-1] = {"role": "assistant", "content": response}
-        yield history, new_state, gr.update(), ""
+        total = len(questions)
+        history[-1] = {"role": "assistant", "content": f"*(1/{total})* **{questions[0]}**"}
+        yield history, new_state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
 
+    # ── CLARIFYING: preguntas de a una ───────────────────────────────
     elif state["phase"] == "clarifying":
-        # Paso 2: investigar con el contexto aclarado
-        new_state = {"phase": "researching", "query": state["query"]}
-        history = history + [{"role": "assistant", "content": "Iniciando investigación..."}]
-        yield history, new_state, gr.update(), ""
+        answers = state["answers"] + [message]
+        next_idx = state["current_q"] + 1
+        questions = state["questions"]
+        total = len(questions)
 
-        async for event in ResearchManager().run(state["query"], message, send_email_flag):
+        if next_idx < total:
+            new_state = {**state, "current_q": next_idx, "answers": answers}
+            history = history + [{"role": "assistant", "content": f"*({next_idx + 1}/{total})* **{questions[next_idx]}**"}]
+            yield history, new_state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
+
+        else:
+            # Todas contestadas → arrancar investigación
+            combined = "\n".join(f"P: {q}\nR: {a}" for q, a in zip(questions, answers))
+            new_state = {**state, "phase": "researching", "answers": answers}
+            history = history + [{"role": "assistant", "content": "Perfecto, iniciando investigación..."}]
+            yield history, new_state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
+
+            async for event in ResearchManager().run(state["query"], combined):
+                if event["type"] == "report":
+                    report = event["data"]
+                    done_state = {**new_state, "phase": "done", "report": report}
+
+                    summary = f"Investigación completada.\n\n**Resumen:** {report.short_summary}"
+                    if report.follow_up_questions:
+                        summary += "\n\n*Hacé click en una pregunta abajo para profundizar el informe.*"
+                    history = history + [{"role": "assistant", "content": summary}]
+
+                    fq = report.follow_up_questions or []
+                    numbered = [f"{i+1}. {q}" for i, q in enumerate(fq)]
+                    yield (
+                        history, done_state,
+                        gr.update(value=report.markdown_report),
+                        gr.update(visible=True, value="Enviar informe por email"),
+                        gr.update(choices=numbered, value=None, visible=bool(fq)),
+                        "",
+                    )
+                else:
+                    history = history + [{"role": "assistant", "content": event["message"]}]
+                    yield history, new_state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
+
+    # ── DONE / DEEPENING: profundizar ────────────────────────────────
+    elif state["phase"] in ("done", "deepening"):
+        deep_state = {**state, "phase": "deepening"}
+        history = history + [{"role": "assistant", "content": f"Profundizando: *{message}*..."}]
+        yield history, deep_state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
+
+        async for event in ResearchManager().deepen(state["query"], state["report"], message):
             if event["type"] == "report":
                 report = event["data"]
+                done_state = {**state, "phase": "done", "report": report}
 
-                summary_block = f"**Resumen:** {report.short_summary}"
+                summary = f"Informe actualizado.\n\n**Resumen:** {report.short_summary}"
                 if report.follow_up_questions:
-                    fq = "\n".join(f"- {q}" for q in report.follow_up_questions)
-                    summary_block += f"\n\n**Preguntas de seguimiento:**\n{fq}"
+                    summary += "\n\n*Hacé click en una pregunta para seguir profundizando.*"
+                history = history + [{"role": "assistant", "content": summary}]
 
-                history[-1] = {"role": "assistant", "content": f"Investigación completada.\n\n{summary_block}"}
-                final_state = initial_state()
-                yield history, final_state, gr.update(value=report.markdown_report), ""
+                fq = report.follow_up_questions or []
+                numbered = [f"{i+1}. {q}" for i, q in enumerate(fq)]
+                yield (
+                    history, done_state,
+                    gr.update(value=report.markdown_report),
+                    gr.update(visible=True, value="Enviar informe por email"),
+                    gr.update(choices=numbered, value=None, visible=bool(fq)),
+                    "",
+                )
             else:
-                history[-1] = {"role": "assistant", "content": event["message"]}
-                yield history, new_state, gr.update(), ""
+                history = history + [{"role": "assistant", "content": event["message"]}]
+                yield history, deep_state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
+
+
+def fill_followup(choice):
+    if not choice:
+        return gr.update()
+    text = choice.split(". ", 1)[1] if ". " in choice else choice
+    return gr.update(value=text)
+
+
+async def send_email(history, state):
+    if state.get("report") is None:
+        yield history, gr.update(value="Sin informe para enviar.")
+        return
+    yield history, gr.update(value="Enviando...", interactive=False)
+    try:
+        await ResearchManager().send_email(state["report"])
+        history = history + [{"role": "assistant", "content": "Email enviado correctamente."}]
+        yield history, gr.update(value="Email enviado", interactive=False)
+    except Exception as e:
+        history = history + [{"role": "assistant", "content": f"Error al enviar email: {e}"}]
+        yield history, gr.update(value="Enviar informe por email", interactive=True)
 
 
 def reset():
-    return [], initial_state(), gr.update(value="")
+    return (
+        [],
+        initial_state(),
+        gr.update(value="*El informe aparecerá aquí una vez finalizada la investigación.*"),
+        gr.update(visible=False),
+        gr.update(choices=[], visible=False, value=None),
+    )
 
 
 # ── UI ─────────────────────────────────────────────────────────────────────
@@ -87,10 +165,15 @@ with gr.Blocks(
         with gr.Column(scale=1):
             chatbot = gr.Chatbot(
                 type="messages",
-                height=520,
+                height=440,
                 label="Conversación",
                 show_copy_button=True,
                 bubble_full_width=False,
+            )
+            followup_radio = gr.Radio(
+                choices=[],
+                label="Preguntas de seguimiento — click para profundizar",
+                visible=False,
             )
             with gr.Row():
                 msg_input = gr.Textbox(
@@ -101,25 +184,25 @@ with gr.Blocks(
                 )
                 send_btn = gr.Button("Enviar", variant="primary", scale=1, min_width=80)
 
-            with gr.Row():
-                send_email_cb = gr.Checkbox(label="Enviar informe por email", value=True, scale=3)
-                reset_btn = gr.Button("Nueva búsqueda", variant="secondary", scale=1)
+            reset_btn = gr.Button("Nueva búsqueda", variant="secondary")
 
-        # ── Columna derecha: informe ─────────────────────────────────────
+        # ── Columna derecha: informe ──────────────────────────────────────
         with gr.Column(scale=1, elem_classes="report-col"):
             gr.Markdown("### Informe")
             report_output = gr.Markdown(
                 value="*El informe aparecerá aquí una vez finalizada la investigación.*",
-                height=560,
+                height=500,
             )
+            email_btn = gr.Button("Enviar informe por email", variant="secondary", visible=False)
 
-    # ── Eventos ─────────────────────────────────────────────────────────
-    shared_inputs  = [msg_input, chatbot, app_state, send_email_cb]
-    shared_outputs = [chatbot, app_state, report_output, msg_input]
+    # ── Eventos ──────────────────────────────────────────────────────────
+    respond_outputs = [chatbot, app_state, report_output, email_btn, followup_radio, msg_input]
 
-    send_btn.click(respond, shared_inputs, shared_outputs)
-    msg_input.submit(respond, shared_inputs, shared_outputs)
-    reset_btn.click(reset, [], [chatbot, app_state, report_output])
+    send_btn.click(respond, [msg_input, chatbot, app_state], respond_outputs)
+    msg_input.submit(respond, [msg_input, chatbot, app_state], respond_outputs)
+    followup_radio.change(fill_followup, [followup_radio], [msg_input])
+    email_btn.click(send_email, [chatbot, app_state], [chatbot, email_btn])
+    reset_btn.click(reset, [], [chatbot, app_state, report_output, email_btn, followup_radio])
 
 
 ui.launch(inbrowser=True)
