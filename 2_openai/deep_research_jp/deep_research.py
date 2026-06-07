@@ -159,6 +159,16 @@ with gr.Blocks(
     theme=gr.themes.Default(primary_hue="sky", neutral_hue="slate"),
     title="Investigación Profunda",
     css="""
+        .options-bar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid #334155;
+            background: var(--background-fill-primary);
+        }
+        .options-bar .gr-form { gap: 1rem; }
+        .options-bar label { font-size: 0.78rem !important; margin-bottom: 2px; }
         .report-col { border-left: 1px solid #334155; padding-left: 1.5rem; }
         footer { display: none !important; }
     """,
@@ -166,24 +176,30 @@ with gr.Blocks(
 
     gr.Markdown("# Investigación Profunda\nHacé tu pregunta y el sistema te pedirá contexto antes de investigar.")
 
+    # ── Panel de opciones fijo ────────────────────────────────────────────
+    with gr.Row(elem_classes="options-bar"):
+        search_tool_selector = gr.Radio(
+            choices=["DuckDuckGo", "OpenAI WebSearch", "Tavily"],
+            value="DuckDuckGo",
+            label="Motor de búsqueda",
+            scale=3,
+        )
+        num_searches_slider = gr.Slider(
+            minimum=1, maximum=10, value=3, step=1,
+            label="Búsquedas",
+            scale=1,
+            min_width=160,
+        )
+
     app_state = gr.State(initial_state())
 
     with gr.Row(equal_height=True):
 
         # ── Columna izquierda: conversación ──────────────────────────────
         with gr.Column(scale=1):
-            search_tool_selector = gr.Radio(
-                choices=["DuckDuckGo", "OpenAI WebSearch", "Tavily"],
-                value="DuckDuckGo",
-                label="Motor de búsqueda",
-            )
-            num_searches_slider = gr.Slider(
-                minimum=1, maximum=10, value=3, step=1,
-                label="Número de búsquedas",
-            )
             chatbot = gr.Chatbot(
                 type="messages",
-                height=440,
+                height=480,
                 label="Conversación",
                 show_copy_button=True,
                 bubble_full_width=False,
@@ -209,7 +225,7 @@ with gr.Blocks(
             gr.Markdown("### Informe")
             report_output = gr.Markdown(
                 value="*El informe aparecerá aquí una vez finalizada la investigación.*",
-                height=500,
+                height=540,
             )
             email_btn = gr.Button("Enviar informe por email", variant="secondary", visible=False)
 
