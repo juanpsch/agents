@@ -159,84 +159,93 @@ with gr.Blocks(
     theme=gr.themes.Default(primary_hue="sky", neutral_hue="slate"),
     title="Investigación Profunda",
     css="""
+        /* Página sin scroll — todo encaja en el viewport */
+        html, body { overflow: hidden; height: 100%; }
+        .gradio-container { height: 100vh !important; overflow: hidden !important; }
+        .main-wrap { height: 100vh; display: flex; flex-direction: column; }
+
+        /* Barra de opciones compacta */
         .options-bar {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            padding: 0.5rem 1rem;
+            flex-shrink: 0;
+            padding: 6px 16px !important;
             border-bottom: 1px solid #334155;
-            background: var(--background-fill-primary);
+            align-items: center;
         }
-        .options-bar .gr-form { gap: 1rem; }
-        .options-bar label { font-size: 0.78rem !important; margin-bottom: 2px; }
+        .options-bar label { font-size: 0.75rem !important; margin-bottom: 1px !important; }
+        .options-bar .gr-radio-row { gap: 8px !important; }
+
+        /* Columna del informe */
         .report-col { border-left: 1px solid #334155; padding-left: 1.5rem; }
+
         footer { display: none !important; }
     """,
 ) as ui:
 
-    gr.Markdown("# Investigación Profunda\nHacé tu pregunta y el sistema te pedirá contexto antes de investigar.")
+    with gr.Column(elem_classes="main-wrap"):
 
-    # ── Panel de opciones fijo ────────────────────────────────────────────
-    with gr.Row(elem_classes="options-bar"):
-        search_tool_selector = gr.Radio(
-            choices=["DuckDuckGo", "OpenAI WebSearch", "Tavily"],
-            value="DuckDuckGo",
-            label="Motor de búsqueda",
-            scale=3,
-        )
-        num_searches_slider = gr.Slider(
-            minimum=1, maximum=10, value=3, step=1,
-            label="Búsquedas",
-            scale=1,
-            min_width=160,
-        )
+        gr.Markdown("## Investigación Profunda")
 
-    app_state = gr.State(initial_state())
-
-    with gr.Row(equal_height=True):
-
-        # ── Columna izquierda: conversación ──────────────────────────────
-        with gr.Column(scale=1):
-            chatbot = gr.Chatbot(
-                type="messages",
-                height=480,
-                label="Conversación",
-                show_copy_button=True,
-                bubble_full_width=False,
+        # ── Barra de opciones ─────────────────────────────────────────────
+        with gr.Row(elem_classes="options-bar"):
+            search_tool_selector = gr.Radio(
+                choices=["DuckDuckGo", "OpenAI WebSearch", "Tavily"],
+                value="DuckDuckGo",
+                label="Motor de búsqueda",
+                scale=3,
             )
-            followup_radio = gr.Radio(
-                choices=[],
-                label="Preguntas de seguimiento — click para profundizar",
-                visible=False,
+            num_searches_slider = gr.Slider(
+                minimum=1, maximum=10, value=3, step=1,
+                label="Búsquedas",
+                scale=1,
+                min_width=160,
             )
-            with gr.Row():
-                msg_input = gr.Textbox(
-                    placeholder="¿Sobre qué querés investigar?",
-                    label="",
-                    scale=5,
-                    autofocus=True,
+
+        app_state = gr.State(initial_state())
+
+        # ── Contenido principal ───────────────────────────────────────────
+        with gr.Row(equal_height=True):
+
+            # Columna izquierda: conversación
+            with gr.Column(scale=1):
+                chatbot = gr.Chatbot(
+                    type="messages",
+                    height=360,
+                    label="Conversación",
+                    show_copy_button=True,
+                    bubble_full_width=False,
                 )
-                send_btn = gr.Button("Enviar", variant="primary", scale=1, min_width=80)
+                followup_radio = gr.Radio(
+                    choices=[],
+                    label="Preguntas de seguimiento — click para profundizar",
+                    visible=False,
+                )
+                with gr.Row():
+                    msg_input = gr.Textbox(
+                        placeholder="¿Sobre qué querés investigar?",
+                        label="",
+                        scale=5,
+                        autofocus=True,
+                    )
+                    send_btn = gr.Button("Enviar", variant="primary", scale=1, min_width=80)
+                reset_btn = gr.Button("Nueva búsqueda", variant="secondary")
 
-            reset_btn = gr.Button("Nueva búsqueda", variant="secondary")
+            # Columna derecha: informe
+            with gr.Column(scale=1, elem_classes="report-col"):
+                gr.Markdown("### Informe")
+                report_output = gr.Markdown(
+                    value="*El informe aparecerá aquí una vez finalizada la investigación.*",
+                    height=430,
+                )
+                email_btn = gr.Button("Enviar informe por email", variant="secondary", visible=False)
 
-        # ── Columna derecha: informe ──────────────────────────────────────
-        with gr.Column(scale=1, elem_classes="report-col"):
-            gr.Markdown("### Informe")
-            report_output = gr.Markdown(
-                value="*El informe aparecerá aquí una vez finalizada la investigación.*",
-                height=540,
-            )
-            email_btn = gr.Button("Enviar informe por email", variant="secondary", visible=False)
+        # ── Eventos ──────────────────────────────────────────────────────
+        respond_outputs = [chatbot, app_state, report_output, email_btn, followup_radio, msg_input]
 
-    # ── Eventos ──────────────────────────────────────────────────────────
-    respond_outputs = [chatbot, app_state, report_output, email_btn, followup_radio, msg_input]
-
-    send_btn.click(respond, [msg_input, chatbot, app_state, search_tool_selector, num_searches_slider], respond_outputs)
-    msg_input.submit(respond, [msg_input, chatbot, app_state, search_tool_selector, num_searches_slider], respond_outputs)
-    followup_radio.change(fill_followup, [followup_radio], [msg_input])
-    email_btn.click(send_email, [chatbot, app_state], [chatbot, email_btn])
-    reset_btn.click(reset, [], [chatbot, app_state, report_output, email_btn, followup_radio])
+        send_btn.click(respond, [msg_input, chatbot, app_state, search_tool_selector, num_searches_slider], respond_outputs)
+        msg_input.submit(respond, [msg_input, chatbot, app_state, search_tool_selector, num_searches_slider], respond_outputs)
+        followup_radio.change(fill_followup, [followup_radio], [msg_input])
+        email_btn.click(send_email, [chatbot, app_state], [chatbot, email_btn])
+        reset_btn.click(reset, [], [chatbot, app_state, report_output, email_btn, followup_radio])
 
 
 ui.launch(inbrowser=True)
