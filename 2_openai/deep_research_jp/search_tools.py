@@ -17,7 +17,7 @@ openai_search = WebSearchTool(search_context_size="low")
 @function_tool
 def duckduckgo_search(query: str) -> str:
     """Search the web using DuckDuckGo and return top results as text."""
-    from duckduckgo_search import DDGS
+    from ddgs import DDGS
 
     with DDGS() as ddgs:
         results = list(ddgs.text(query, max_results=5))
