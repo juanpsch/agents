@@ -4,19 +4,98 @@ from langsmith import trace as ls_trace
 from search_agent import make_search_agent
 from search_tools import duckduckgo_search, openai_search, tavily_search
 from planner_agent import planner_agent, WebSearchItem, WebSearchPlan
+from writer_agent import writer_agent, ReportData
+from email_agent import email_agent
+from clarifier_agent import clarifier_agent, ClarificationResult
+import asyncio
 
 SEARCH_TOOLS = {
     "DuckDuckGo": duckduckgo_search,
     "OpenAI WebSearch": openai_search,
     "Tavily": tavily_search,
 }
-from writer_agent import writer_agent, ReportData
-from email_agent import email_agent
-from clarifier_agent import clarifier_agent, ClarificationResult
-import asyncio
 
 
 class ResearchManager:
+
+    # ── Punto de entrada principal: maneja la conversación completa ────────
+
+    async def handle(self, message: str, state: dict, search_tool_name: str, num_searches: int):
+        """
+        Recibe el mensaje del usuario y el estado actual.
+        Yields eventos:
+          {"type": "message",  "content": str}          → agregar al chat
+          {"type": "state",    "state": dict}            → actualizar estado
+          {"type": "blocked",  "message": str}           → error + reset
+          {"type": "report",   "data": ReportData,
+                               "state": dict}            → informe listo
+        """
+        phase = state["phase"]
+
+        # ── IDLE: nueva consulta ──────────────────────────────────────────
+        if phase == "idle":
+            yield {"type": "message", "content": "Analizando tu consulta..."}
+            try:
+                questions = await self.clarify(message)
+            except ValueError as e:
+                yield {"type": "blocked", "message": str(e)}
+                return
+
+            new_state = {
+                **state,
+                "phase": "clarifying",
+                "query": message,
+                "questions": questions,
+                "current_q": 0,
+                "answers": [],
+            }
+            total = len(questions)
+            yield {"type": "message", "content": f"*(1/{total})* **{questions[0]}**"}
+            yield {"type": "state", "state": new_state}
+
+        # ── CLARIFYING: preguntas de a una ────────────────────────────────
+        elif phase == "clarifying":
+            answers  = state["answers"] + [message]
+            next_idx = state["current_q"] + 1
+            questions = state["questions"]
+            total    = len(questions)
+
+            if next_idx < total:
+                new_state = {**state, "current_q": next_idx, "answers": answers}
+                yield {"type": "message", "content": f"*({next_idx + 1}/{total})* **{questions[next_idx]}**"}
+                yield {"type": "state", "state": new_state}
+
+            else:
+                combined  = "\n".join(f"P: {q}\nR: {a}" for q, a in zip(questions, answers))
+                new_state = {**state, "phase": "researching", "answers": answers}
+                yield {"type": "state", "state": new_state}
+                yield {"type": "message", "content": "Perfecto, iniciando investigación..."}
+
+                async for event in self.run(state["query"], combined, search_tool_name, num_searches):
+                    if event["type"] == "report":
+                        done_state = {**new_state, "phase": "done", "report": event["data"]}
+                        yield {"type": "report", "data": event["data"], "state": done_state}
+                    elif event["type"] == "blocked":
+                        yield event
+                    else:
+                        yield {"type": "message", "content": event["message"]}
+
+        # ── DONE / DEEPENING: profundizar ─────────────────────────────────
+        elif phase in ("done", "deepening"):
+            deep_state = {**state, "phase": "deepening"}
+            yield {"type": "state", "state": deep_state}
+            yield {"type": "message", "content": f"Profundizando: *{message}*..."}
+
+            async for event in self.deepen(state["query"], state["report"], message, search_tool_name, num_searches):
+                if event["type"] == "report":
+                    done_state = {**state, "phase": "done", "report": event["data"]}
+                    yield {"type": "report", "data": event["data"], "state": done_state}
+                elif event["type"] == "blocked":
+                    yield event
+                else:
+                    yield {"type": "message", "content": event["message"]}
+
+    # ── Métodos internos ───────────────────────────────────────────────────
 
     @traceable(name="clarify")
     async def clarify(self, query: str) -> list[str]:
@@ -30,7 +109,7 @@ class ResearchManager:
     async def run(self, query: str, clarifications: str = "", search_tool_name: str = "DuckDuckGo", num_searches: int = 3):
         trace_id = gen_trace_id()
         with ls_trace("Investigación profunda"), trace("Investigación profunda", trace_id=trace_id):
-            yield {"type": "status", "message": f"Traza: https://platform.openai.com/traces/trace?trace_id={trace_id}"}
+            yield {"type": "message", "message": f"Traza: https://platform.openai.com/traces/trace?trace_id={trace_id}"}
             yield {"type": "progress", "message": "Planificando búsquedas..."}
             try:
                 search_plan = await self.plan_searches(query, clarifications, num_searches)
@@ -64,7 +143,7 @@ class ResearchManager:
     async def deepen(self, query: str, original_report: ReportData, focus: str, search_tool_name: str = "DuckDuckGo", num_searches: int = 3):
         trace_id = gen_trace_id()
         with ls_trace("Profundización"), trace("Profundización", trace_id=trace_id):
-            yield {"type": "status", "message": f"Traza: https://platform.openai.com/traces/trace?trace_id={trace_id}"}
+            yield {"type": "progress", "message": f"Traza: https://platform.openai.com/traces/trace?trace_id={trace_id}"}
             yield {"type": "progress", "message": "Planificando búsquedas adicionales..."}
             search_plan = await self.plan_searches(focus, "", num_searches)
             n = len(search_plan.searches)
