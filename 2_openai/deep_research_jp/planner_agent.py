@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from agents import Agent
+from guardrails import query_safety
 
 HOW_MANY_SEARCHES = 3
 
@@ -21,4 +22,5 @@ planner_agent = Agent(
     instructions=INSTRUCTIONS,
     model="gpt-4o-mini",
     output_type=WebSearchPlan,
+    input_guardrails=[query_safety],
 )

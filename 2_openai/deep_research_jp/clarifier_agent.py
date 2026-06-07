@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from agents import Agent
+from guardrails import query_safety
 
 class ClarificationResult(BaseModel):
     questions: list[str] = Field(description="Lista de 2-3 preguntas clarificadoras")
@@ -19,4 +20,5 @@ clarifier_agent = Agent(
     instructions=INSTRUCTIONS,
     model="gpt-4o-mini",
     output_type=ClarificationResult,
+    input_guardrails=[query_safety],
 )

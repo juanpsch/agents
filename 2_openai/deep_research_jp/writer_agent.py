@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from agents import Agent
+from guardrails import report_safety
 
 INSTRUCTIONS = (
     "Eres un investigador senior encargado de escribir un informe coherente para una consulta de investigación. "
@@ -24,4 +25,5 @@ writer_agent = Agent(
     instructions=INSTRUCTIONS,
     model="gpt-4o-mini",
     output_type=ReportData,
+    output_guardrails=[report_safety],
 )

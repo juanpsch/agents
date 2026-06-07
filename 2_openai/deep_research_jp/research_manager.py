@@ -1,4 +1,4 @@
-from agents import Runner, trace, gen_trace_id
+from agents import Runner, trace, gen_trace_id, InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered
 from search_agent import search_agent
 from planner_agent import planner_agent, WebSearchItem, WebSearchPlan
 from writer_agent import writer_agent, ReportData
@@ -10,7 +10,11 @@ import asyncio
 class ResearchManager:
 
     async def clarify(self, query: str) -> list[str]:
-        result = await Runner.run(clarifier_agent, f"Consulta del usuario: {query}")
+        try:
+            result = await Runner.run(clarifier_agent, f"Consulta del usuario: {query}")
+        except InputGuardrailTripwireTriggered as e:
+            reason = e.guardrail_result.output.output_info.reason
+            raise ValueError(f"Consulta bloqueada: {reason}")
         return result.final_output_as(ClarificationResult).questions
 
     async def run(self, query: str, clarifications: str = ""):
@@ -18,7 +22,12 @@ class ResearchManager:
         with trace("Investigación profunda", trace_id=trace_id):
             yield {"type": "status", "message": f"Traza: https://platform.openai.com/traces/trace?trace_id={trace_id}"}
             yield {"type": "progress", "message": "Planificando búsquedas..."}
-            search_plan = await self.plan_searches(query, clarifications)
+            try:
+                search_plan = await self.plan_searches(query, clarifications)
+            except InputGuardrailTripwireTriggered as e:
+                reason = e.guardrail_result.output.output_info.reason
+                yield {"type": "blocked", "message": f"Consulta bloqueada: {reason}"}
+                return
             n = len(search_plan.searches)
 
             yield {"type": "progress", "message": f"Plan listo — realizando {n} búsquedas en paralelo..."}
@@ -33,7 +42,12 @@ class ResearchManager:
                 yield {"type": "progress", "message": f"Buscando... {completed}/{n} completadas"}
 
             yield {"type": "progress", "message": "Redactando informe..."}
-            report = await self.write_report(query, clarifications, results)
+            try:
+                report = await self.write_report(query, clarifications, results)
+            except OutputGuardrailTripwireTriggered as e:
+                reason = e.guardrail_result.output.output_info.reason
+                yield {"type": "blocked", "message": f"Informe bloqueado por contenido problemático: {reason}"}
+                return
             yield {"type": "report", "data": report}
 
     async def deepen(self, query: str, original_report: ReportData, focus: str):

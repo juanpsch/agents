@@ -34,7 +34,12 @@ async def respond(message, history, state):
         history = history + [{"role": "assistant", "content": "Analizando tu consulta..."}]
         yield history, state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
 
-        questions = await ResearchManager().clarify(message)
+        try:
+            questions = await ResearchManager().clarify(message)
+        except ValueError as e:
+            history[-1] = {"role": "assistant", "content": f"⚠️ {e}"}
+            yield history, initial_state(), gr.update(), gr.update(visible=False), gr.update(visible=False), ""
+            return
         new_state = {**initial_state(), "phase": "clarifying", "query": message, "questions": questions}
 
         total = len(questions)
@@ -79,6 +84,10 @@ async def respond(message, history, state):
                         gr.update(choices=numbered, value=None, visible=bool(fq)),
                         "",
                     )
+                elif event["type"] == "blocked":
+                    history = history + [{"role": "assistant", "content": f"⚠️ {event['message']}"}]
+                    yield history, initial_state(), gr.update(), gr.update(visible=False), gr.update(visible=False), ""
+                    return
                 else:
                     history = history + [{"role": "assistant", "content": event["message"]}]
                     yield history, new_state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
