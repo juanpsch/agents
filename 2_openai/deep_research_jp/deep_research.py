@@ -32,6 +32,7 @@ async def respond(message, history, state, search_tool, num_searches):
 
         elif t == "state":
             state = event["state"]
+            yield history, state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
 
         elif t == "blocked":
             history = history + [{"role": "assistant", "content": f"⚠️ {event['message']}"}]
