@@ -2,11 +2,11 @@ from pydantic import BaseModel, Field
 from agents import Agent
 from guardrails import query_safety
 
-HOW_MANY_SEARCHES = 3
-
-INSTRUCTIONS = f"Eres un asistente de investigación útil. Dado un término de búsqueda, \
-produce un conjunto de búsquedas web para realizar para responder la consulta. \
-Salida: {HOW_MANY_SEARCHES} términos para consultar."
+INSTRUCTIONS = (
+    "Eres un asistente de investigación útil. Dado un término de búsqueda, produce un conjunto "
+    "de búsquedas web para realizar para responder la consulta. "
+    "El número exacto de búsquedas a realizar se indicará en el prompt."
+)
 
 
 class WebSearchItem(BaseModel):

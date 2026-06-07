@@ -1,5 +1,4 @@
 from agents import Agent, ModelSettings
-from search_tools import ACTIVE_SEARCH_TOOL
 
 INSTRUCTIONS = (
     "Eres un asistente de investigación. Dado un término de búsqueda, buscas en la web ese término y "
@@ -9,10 +8,12 @@ INSTRUCTIONS = (
     "esencia y ignores cualquier fluff. No incluyas ningún comentario adicional más que el resumen en sí."
 )
 
-search_agent = Agent(
-    name="Agente de búsqueda",
-    instructions=INSTRUCTIONS,
-    tools=[ACTIVE_SEARCH_TOOL],
-    model="gpt-4o-mini",
-    model_settings=ModelSettings(tool_choice="required"),
-)
+
+def make_search_agent(tool):
+    return Agent(
+        name="Agente de búsqueda",
+        instructions=INSTRUCTIONS,
+        tools=[tool],
+        model="gpt-4o-mini",
+        model_settings=ModelSettings(tool_choice="required"),
+    )

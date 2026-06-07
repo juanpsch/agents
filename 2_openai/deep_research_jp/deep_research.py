@@ -22,7 +22,7 @@ def initial_state():
 
 # outputs: chatbot, app_state, report_output, email_btn, followup_radio, msg_input
 
-async def respond(message, history, state):
+async def respond(message, history, state, search_tool, num_searches):
     if not message.strip():
         yield history, state, gr.update(), gr.update(), gr.update(), ""
         return
@@ -65,7 +65,7 @@ async def respond(message, history, state):
             history = history + [{"role": "assistant", "content": "Perfecto, iniciando investigación..."}]
             yield history, new_state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
 
-            async for event in ResearchManager().run(state["query"], combined):
+            async for event in ResearchManager().run(state["query"], combined, search_tool, num_searches):
                 if event["type"] == "report":
                     report = event["data"]
                     done_state = {**new_state, "phase": "done", "report": report}
@@ -98,7 +98,7 @@ async def respond(message, history, state):
         history = history + [{"role": "assistant", "content": f"Profundizando: *{message}*..."}]
         yield history, deep_state, gr.update(), gr.update(visible=False), gr.update(visible=False), ""
 
-        async for event in ResearchManager().deepen(state["query"], state["report"], message):
+        async for event in ResearchManager().deepen(state["query"], state["report"], message, search_tool, num_searches):
             if event["type"] == "report":
                 report = event["data"]
                 done_state = {**state, "phase": "done", "report": report}
@@ -172,6 +172,15 @@ with gr.Blocks(
 
         # ── Columna izquierda: conversación ──────────────────────────────
         with gr.Column(scale=1):
+            search_tool_selector = gr.Radio(
+                choices=["DuckDuckGo", "OpenAI WebSearch", "Tavily"],
+                value="DuckDuckGo",
+                label="Motor de búsqueda",
+            )
+            num_searches_slider = gr.Slider(
+                minimum=1, maximum=10, value=3, step=1,
+                label="Número de búsquedas",
+            )
             chatbot = gr.Chatbot(
                 type="messages",
                 height=440,
@@ -207,8 +216,8 @@ with gr.Blocks(
     # ── Eventos ──────────────────────────────────────────────────────────
     respond_outputs = [chatbot, app_state, report_output, email_btn, followup_radio, msg_input]
 
-    send_btn.click(respond, [msg_input, chatbot, app_state], respond_outputs)
-    msg_input.submit(respond, [msg_input, chatbot, app_state], respond_outputs)
+    send_btn.click(respond, [msg_input, chatbot, app_state, search_tool_selector, num_searches_slider], respond_outputs)
+    msg_input.submit(respond, [msg_input, chatbot, app_state, search_tool_selector, num_searches_slider], respond_outputs)
     followup_radio.change(fill_followup, [followup_radio], [msg_input])
     email_btn.click(send_email, [chatbot, app_state], [chatbot, email_btn])
     reset_btn.click(reset, [], [chatbot, app_state, report_output, email_btn, followup_radio])
