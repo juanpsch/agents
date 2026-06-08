@@ -21,6 +21,8 @@ class ResearchManager:
     # ── Punto de entrada principal: maneja la conversación completa ────────
 
     async def handle(self, message: str, state: dict, search_tool_name: str, num_searches: int):
+        thread_id = state.get("thread_id")
+        lse = {"metadata": {"thread_id": thread_id}} if thread_id else {}
         """
         Recibe el mensaje del usuario y el estado actual.
         Yields eventos:
@@ -36,7 +38,7 @@ class ResearchManager:
         if phase == "idle":
             yield {"type": "message", "content": "Analizando tu consulta..."}
             try:
-                questions = await self.clarify(message)
+                questions = await self.clarify(message, langsmith_extra=lse)
             except ValueError as e:
                 yield {"type": "blocked", "message": str(e)}
                 return
@@ -71,7 +73,7 @@ class ResearchManager:
                 yield {"type": "state", "state": new_state}
                 yield {"type": "message", "content": "Perfecto, iniciando investigación..."}
 
-                async for event in self.run(state["query"], combined, search_tool_name, num_searches):
+                async for event in self.run(state["query"], combined, search_tool_name, num_searches, thread_id):
                     if event["type"] == "report":
                         done_state = {**new_state, "phase": "done", "report": event["data"]}
                         yield {"type": "report", "data": event["data"], "state": done_state}
@@ -86,7 +88,7 @@ class ResearchManager:
             yield {"type": "state", "state": deep_state}
             yield {"type": "message", "content": f"Profundizando: *{message}*..."}
 
-            async for event in self.deepen(state["query"], state["report"], message, search_tool_name, num_searches):
+            async for event in self.deepen(state["query"], state["report"], message, search_tool_name, num_searches, thread_id):
                 if event["type"] == "report":
                     done_state = {**state, "phase": "done", "report": event["data"]}
                     yield {"type": "report", "data": event["data"], "state": done_state}
@@ -106,13 +108,14 @@ class ResearchManager:
             raise ValueError(f"Consulta bloqueada: {reason}")
         return result.final_output_as(ClarificationResult).questions
 
-    async def run(self, query: str, clarifications: str = "", search_tool_name: str = "DuckDuckGo", num_searches: int = 3):
+    async def run(self, query: str, clarifications: str = "", search_tool_name: str = "DuckDuckGo", num_searches: int = 3, thread_id: str = None):
+        lse = {"metadata": {"thread_id": thread_id}} if thread_id else {}
         trace_id = gen_trace_id()
-        with ls_trace("Investigación profunda"), trace("Investigación profunda", trace_id=trace_id):
+        with ls_trace("Investigación profunda", metadata={"thread_id": thread_id} if thread_id else {}), trace("Investigación profunda", trace_id=trace_id):
             yield {"type": "message", "message": f"Traza: https://platform.openai.com/traces/trace?trace_id={trace_id}"}
             yield {"type": "progress", "message": "Planificando búsquedas..."}
             try:
-                search_plan = await self.plan_searches(query, clarifications, num_searches)
+                search_plan = await self.plan_searches(query, clarifications, num_searches, langsmith_extra=lse)
             except InputGuardrailTripwireTriggered as e:
                 reason = e.guardrail_result.output.output_info.reason
                 yield {"type": "blocked", "message": f"Consulta bloqueada: {reason}"}
@@ -121,7 +124,7 @@ class ResearchManager:
 
             tool = SEARCH_TOOLS.get(search_tool_name, duckduckgo_search)
             yield {"type": "progress", "message": f"Plan listo — realizando {n} búsquedas en paralelo ({search_tool_name})..."}
-            tasks = [asyncio.create_task(self.search(item, tool)) for item in search_plan.searches]
+            tasks = [asyncio.create_task(self.search(item, tool, langsmith_extra=lse)) for item in search_plan.searches]
             results = []
             completed = 0
             for task in asyncio.as_completed(tasks):
@@ -133,24 +136,25 @@ class ResearchManager:
 
             yield {"type": "progress", "message": "Redactando informe..."}
             try:
-                report = await self.write_report(query, clarifications, results)
+                report = await self.write_report(query, clarifications, results, langsmith_extra=lse)
             except OutputGuardrailTripwireTriggered as e:
                 reason = e.guardrail_result.output.output_info.reason
                 yield {"type": "blocked", "message": f"Informe bloqueado por contenido problemático: {reason}"}
                 return
             yield {"type": "report", "data": report}
 
-    async def deepen(self, query: str, original_report: ReportData, focus: str, search_tool_name: str = "DuckDuckGo", num_searches: int = 3):
+    async def deepen(self, query: str, original_report: ReportData, focus: str, search_tool_name: str = "DuckDuckGo", num_searches: int = 3, thread_id: str = None):
+        lse = {"metadata": {"thread_id": thread_id}} if thread_id else {}
         trace_id = gen_trace_id()
-        with ls_trace("Profundización"), trace("Profundización", trace_id=trace_id):
+        with ls_trace("Profundización", metadata={"thread_id": thread_id} if thread_id else {}), trace("Profundización", trace_id=trace_id):
             yield {"type": "progress", "message": f"Traza: https://platform.openai.com/traces/trace?trace_id={trace_id}"}
             yield {"type": "progress", "message": "Planificando búsquedas adicionales..."}
-            search_plan = await self.plan_searches(focus, "", num_searches)
+            search_plan = await self.plan_searches(focus, "", num_searches, langsmith_extra=lse)
             n = len(search_plan.searches)
 
             tool = SEARCH_TOOLS.get(search_tool_name, duckduckgo_search)
             yield {"type": "progress", "message": f"Realizando {n} búsquedas adicionales ({search_tool_name})..."}
-            tasks = [asyncio.create_task(self.search(item, tool)) for item in search_plan.searches]
+            tasks = [asyncio.create_task(self.search(item, tool, langsmith_extra=lse)) for item in search_plan.searches]
             results = []
             completed = 0
             for task in asyncio.as_completed(tasks):
@@ -169,8 +173,8 @@ class ResearchManager:
                 f"Expandí y mejorá el informe incorporando la nueva información. "
                 f"Mantené todo el contenido previo y enriquecelo con secciones nuevas o ampliadas."
             )
-            result = await Runner.run(writer_agent, input_text)
-            updated_report = result.final_output_as(ReportData)
+            result = await self.write_report_deepen(input_text, langsmith_extra=lse)
+            updated_report = result
             yield {"type": "report", "data": updated_report}
 
     @traceable(name="plan-searches")
@@ -189,6 +193,11 @@ class ResearchManager:
             return str(result.final_output)
         except Exception:
             return None
+
+    @traceable(name="write-report-deepen")
+    async def write_report_deepen(self, input_text: str) -> ReportData:
+        result = await Runner.run(writer_agent, input_text)
+        return result.final_output_as(ReportData)
 
     @traceable(name="write-report")
     async def write_report(self, query: str, clarifications: str, search_results: list[str]) -> ReportData:
