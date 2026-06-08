@@ -51,3 +51,6 @@ dependencies = [
 dev = [
     "ipykernel>=6.29.5",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
