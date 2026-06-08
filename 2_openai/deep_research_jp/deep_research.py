@@ -6,12 +6,12 @@ sys.path.insert(0, str(_root))
 
 import init_agents  # configura dotenv + tracing key
 import gradio as gr
-from langsmith import uuid7
+import uuid
 from research_manager import ResearchManager
 
 
 def initial_state():
-    return {"phase": "idle", "query": "", "report": None, "questions": [], "current_q": 0, "answers": [], "thread_id": str(uuid7())}
+    return {"phase": "idle", "query": "", "report": None, "questions": [], "current_q": 0, "answers": [], "thread_id": str(uuid.uuid4())}
 
 
 # outputs: chatbot, app_state, report_output, email_btn, followup_radio, msg_input
