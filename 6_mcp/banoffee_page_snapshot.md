@@ -1,0 +1,15 @@
+- generic [ref=f13e1]:
+  - generic [ref=f13e3]:
+    - link "Skip to main content":
+      - /url: "#site-main"
+    - generic [ref=f13e9]
+    - link "Good Food logo in black" [ref=f13e43] [cursor=pointer]:
+      - /url: https://www.bbcgoodfood.com
+    - navigation "Main" [ref=f13e47]
+    - main [ref=f13e89]
+    - generic [ref=f13e1344]
+    - contentinfo [ref=f13e1393]
+  - alert [ref=f13e1580]
+  - dialog [ref=f13e1581]:
+    - iframe [active] [ref=f13e1582]:
+      
