@@ -5,6 +5,11 @@ from sidekick import Sidekick
 async def setup():
     sidekick = Sidekick()
     await sidekick.setup()
+    if sidekick.tools:
+        print("\n=== HERRAMIENTAS DISPONIBLES ===")
+        for tool in sidekick.tools:
+            print(f"  - {tool.name}: {tool.description[:60]}...")
+        print("=" * 32 + "\n")
     return sidekick
 
 async def process_message(sidekick, message, success_criteria, history):

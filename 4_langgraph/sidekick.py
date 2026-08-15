@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from langgraph.prebuilt import ToolNode
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+import aiosqlite
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from typing import List, Any, Optional, Dict
 from pydantic import BaseModel, Field
@@ -13,6 +15,8 @@ from sidekick_tools import playwright_tools, other_tools
 import uuid
 import asyncio
 from datetime import datetime
+
+
 
 load_dotenv(override=True)
 
@@ -38,11 +42,13 @@ class Sidekick:
         self.llm_with_tools = None
         self.graph = None
         self.sidekick_id = str(uuid.uuid4())
-        self.memory = MemorySaver()
+        self.memory = None  # Se inicializa en setup()
         self.browser = None
         self.playwright = None
 
     async def setup(self):
+        conn = await aiosqlite.connect("sidekick_memory.db")
+        self.memory = AsyncSqliteSaver(conn)
         self.tools, self.browser, self.playwright = await playwright_tools()
         self.tools += await other_tools()
         worker_llm = ChatOpenAI(model="gpt-4o-mini")
@@ -54,8 +60,14 @@ class Sidekick:
     def worker(self, state: State) -> Dict[str, Any]:
         system_message = f"""Eres un asistente útil que puede usar herramientas para completar tareas.
     Continúas trabajando en una tarea hasta que tengas una pregunta o aclaración para el usuario, o hasta que se cumplan los criterios de éxito.
-    Tienes muchas herramientas para ayudarte, incluyendo herramientas para navegar por internet, navegar y recuperar páginas web.
-    Tienes una herramienta para ejecutar código python, pero ten en cuenta que necesitarías incluir un print() si quieres recibir salida.
+    Tienes muchas herramientas para ayudarte:
+    - Herramientas de navegación web (buscar, recuperar páginas, navegar con navegador)
+    - Herramientas de archivo (leer, escribir, eliminar archivos)
+    - Herramientas de conocimiento (save_note para guardar notas con embeddings, search_knowledge para buscar en tus notas)
+    - Una herramienta para ejecutar código python (recuerda incluir print() para recibir salida)
+    - Otras herramientas especializadas
+
+    IMPORTANTE: Cuando el usuario pida guardar una nota, usa la herramienta "save_note" con el contenido.
     La fecha y hora actual es {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
     Estos son los criterios de éxito:

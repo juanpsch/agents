@@ -5,10 +5,9 @@ import os
 import requests
 from langchain.agents import Tool
 from langchain_community.agent_toolkits import FileManagementToolkit
-from langchain_community.tools.wikipedia.tool import WikipediaQueryRun
 from langchain_experimental.tools import PythonREPLTool
 from langchain_community.utilities import GoogleSerperAPIWrapper
-from langchain_community.utilities.wikipedia import WikipediaAPIWrapper
+from tools.knowledge import get_knowledge_tools
 
 
 
@@ -35,21 +34,18 @@ def get_file_tools():
     toolkit = FileManagementToolkit(root_dir="sandbox")
     return toolkit.get_tools()
 
-
 async def other_tools():
     push_tool = Tool(name="send_push_notification", func=push, description="Usa esta herramienta cuando quieras enviar una notificación push")
     file_tools = get_file_tools()
 
-    tool_search =Tool(
+    tool_search = Tool(
         name="search",
         func=serper.run,
         description="Usa esta herramienta cuando quieras obtener los resultados de una búsqueda en línea"
     )
 
-    wikipedia = WikipediaAPIWrapper()
-    wiki_tool = WikipediaQueryRun(api_wrapper=wikipedia)
-
     python_repl = PythonREPLTool()
-    
-    return file_tools + [push_tool, tool_search, python_repl,  wiki_tool]
+    knowledge_tools = get_knowledge_tools()
+
+    return file_tools + [push_tool, tool_search, python_repl] + knowledge_tools
 
