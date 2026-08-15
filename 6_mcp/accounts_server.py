@@ -22,7 +22,7 @@ async def get_holdings(name: str) -> dict[str, int]:
     return Account.get(name).holdings
 
 @mcp.tool()
-async def buy_shares(name: str, symbol: str, quantity: int, rationale: str) -> float:
+async def buy_shares(name: str, symbol: str, quantity: int, rationale: str) -> str:
     """Compra acciones de una empresa.
 
     Args:
@@ -35,7 +35,7 @@ async def buy_shares(name: str, symbol: str, quantity: int, rationale: str) -> f
 
 
 @mcp.tool()
-async def sell_shares(name: str, symbol: str, quantity: int, rationale: str) -> float:
+async def sell_shares(name: str, symbol: str, quantity: int, rationale: str) -> str:
     """Vende acciones de una empresa.
 
     Args:

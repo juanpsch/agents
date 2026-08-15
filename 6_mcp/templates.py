@@ -25,6 +25,8 @@ Aprovecha tu grafo de conocimiento para construir tu experiencia con el tiempo.
 
 Si no hay una solicitud específica, simplemente responde con oportunidades de inversión basadas en la búsqueda de las últimas noticias.
 La fecha y hora actual es {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Antes de dar tu respuesta final, guarda con create_entities un resumen de cada empresa
+que investigaste (nombre, ticker, hallazgo clave) y las condiciones de mercado observadas.
 """
 
 def research_tool():

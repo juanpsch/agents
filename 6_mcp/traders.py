@@ -15,8 +15,14 @@ from templates import (
     research_tool,
 )
 from mcp_params import trader_mcp_server_params, researcher_mcp_server_params
+from agents import set_tracing_export_api_key
 
 load_dotenv(override=True)
+
+tracing_key = os.getenv("OPENAI_TRACING_API_KEY")
+if tracing_key:
+    set_tracing_export_api_key(tracing_key)
+
 
 deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
 google_api_key = os.getenv("GOOGLE_API_KEY")

@@ -1,6 +1,6 @@
-from polygon import RESTClient
 from dotenv import load_dotenv
 import os
+import requests
 from datetime import datetime
 import random
 from database import write_market, read_market
@@ -15,22 +15,35 @@ polygon_plan = os.getenv("POLYGON_PLAN")
 is_paid_polygon = polygon_plan == "paid"
 is_realtime_polygon = polygon_plan == "realtime"
 
+POLYGON_BASE_URL = "https://api.polygon.io"
+
+
+def _polygon_get(path: str, **params) -> dict:
+    """Le pega directo a la REST API de Polygon con requests, que sí respeta
+    HTTP_PROXY/HTTPS_PROXY (a diferencia de RESTClient del SDK oficial, que usa
+    urllib3.PoolManager y se cuelga detrás de un proxy corporativo)."""
+    params["apiKey"] = polygon_api_key
+    response = requests.get(f"{POLYGON_BASE_URL}{path}", params=params, timeout=10)
+    response.raise_for_status()
+    return response.json()
+
 
 def is_market_open() -> bool:
-    client = RESTClient(polygon_api_key)
-    market_status = client.get_market_status()
-    return market_status.market == "open"
+    data = _polygon_get("/v1/marketstatus/now")
+    return data.get("market") == "open"
 
 
 def get_all_share_prices_polygon_eod() -> dict[str, float]:
     """Con mucho agradecimiento a la estudiante Reema R. por arreglar el problema de la zona horaria en esto!"""
-    client = RESTClient(polygon_api_key)
+    probe = _polygon_get("/v2/aggs/ticker/SPY/prev")["results"][0]
+    last_close = datetime.fromtimestamp(probe["t"] / 1000, tz=timezone.utc).date()
 
-    probe = client.get_previous_close_agg("SPY")[0]
-    last_close = datetime.fromtimestamp(probe.timestamp / 1000, tz=timezone.utc).date()
-
-    results = client.get_grouped_daily_aggs(last_close, adjusted=True, include_otc=False)
-    return {result.ticker: result.close for result in results}
+    data = _polygon_get(
+        f"/v2/aggs/grouped/locale/us/market/stocks/{last_close}",
+        adjusted="true",
+        include_otc="false",
+    )
+    return {result["T"]: result["c"] for result in data.get("results", [])}
 
 
 @lru_cache(maxsize=2)
@@ -49,9 +62,11 @@ def get_share_price_polygon_eod(symbol) -> float:
 
 
 def get_share_price_polygon_min(symbol) -> float:
-    client = RESTClient(polygon_api_key)
-    result = client.get_snapshot_ticker("stocks", symbol)
-    return result.min.close or result.prev_day.close
+    data = _polygon_get(f"/v2/snapshot/locale/us/markets/stocks/tickers/{symbol}")
+    ticker = data.get("ticker") or {}
+    min_close = (ticker.get("min") or {}).get("c")
+    prev_close = (ticker.get("prevDay") or {}).get("c")
+    return min_close or prev_close or 0.0
 
 
 def get_share_price_polygon(symbol) -> float:
